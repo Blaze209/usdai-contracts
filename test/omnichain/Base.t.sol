@@ -46,7 +46,8 @@ import {TestERC20} from "../tokens/TestERC20.sol";
 
 /**
  * @title Omnichain Base test setup
- * @author USD.AI Foundation
+ *
+ * @author MetaStreet Foundation
  * @author Modified from https://github.com/PaulRBerg/prb-proxy/blob/main/test/Base.t.sol
  *
  */
@@ -96,7 +97,7 @@ abstract contract OmnichainBaseTest is TestHelperOz5 {
         TestHelperOz5.setUp();
 
         // Deploy mock USDai
-        IUSDai usdaiImpl = new MockUSDai(address(0));
+        IUSDai usdaiImpl = new MockUSDai();
 
         /* Deploy usdai proxy */
         TransparentUpgradeableProxy usdaiProxy =
@@ -109,7 +110,7 @@ abstract contract OmnichainBaseTest is TestHelperOz5 {
         MockLoanRouter mockLoanRouter = new MockLoanRouter();
 
         // Deploy mock staked usdai implementation
-        IStakedUSDai stakedUsdaiImpl = new MockStakedUSDai(address(usdai), address(mockLoanRouter), address(0));
+        IStakedUSDai stakedUsdaiImpl = new MockStakedUSDai(address(usdai), address(mockLoanRouter));
 
         /* Deploy staked usdai proxy */
         TransparentUpgradeableProxy stakedUsdaiProxy = new TransparentUpgradeableProxy(
@@ -240,42 +241,6 @@ abstract contract OmnichainBaseTest is TestHelperOz5 {
         stakedUsdaiHomeOAdapter.setRateLimits(rateLimitConfigsStakedUsdaiHome);
         stakedUsdaiAwayOAdapter.setRateLimits(rateLimitConfigsStakedUsdaiAway);
 
-        /* Deploy usdai implementation */
-        usdaiImpl = new MockUSDai(address(usdaiHomeOAdapter));
-
-        /* Lookup proxy admin from EIP-1967 storage slot */
-        address proxyAdmin = address(uint160(uint256(vm.load(address(usdai), ERC1967Utils.ADMIN_SLOT))));
-
-        ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(address(usdai)),
-            address(usdaiImpl),
-            "" // No additional initialization data
-        );
-
-        /* Deploy staked usdai implementation */
-        stakedUsdaiImpl = new MockStakedUSDai(address(usdai), address(mockLoanRouter), address(stakedUsdaiHomeOAdapter));
-
-        /* Lookup proxy admin from EIP-1967 storage slot */
-        proxyAdmin = address(uint160(uint256(vm.load(address(stakedUsdai), ERC1967Utils.ADMIN_SLOT))));
-
-        ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(address(stakedUsdai)),
-            address(stakedUsdaiImpl),
-            "" // No additional initialization data
-        );
-
-        /* Deploy staked usdai implementation */
-        stakedUsdaiImpl = new MockStakedUSDai(address(usdai), address(mockLoanRouter), address(stakedUsdaiHomeOAdapter));
-
-        /* Lookup proxy admin from EIP-1967 storage slot */
-        proxyAdmin = address(uint160(uint256(vm.load(address(stakedUsdai), ERC1967Utils.ADMIN_SLOT))));
-
-        ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(address(stakedUsdai)),
-            address(stakedUsdaiImpl),
-            "" // No additional initialization data
-        );
-
         // Deploy receipt tokens
         ReceiptToken receiptTokenImpl = new ReceiptToken();
 
@@ -355,7 +320,8 @@ abstract contract OmnichainBaseTest is TestHelperOz5 {
             address(receiptTokenImpl),
             address(oUsdaiUtility)
         );
-        proxyAdmin = address(uint160(uint256(vm.load(address(usdaiQueuedDepositorProxy), ERC1967Utils.ADMIN_SLOT))));
+        address proxyAdmin =
+            address(uint160(uint256(vm.load(address(usdaiQueuedDepositorProxy), ERC1967Utils.ADMIN_SLOT))));
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(address(usdaiQueuedDepositorProxy)),
             address(newImpl),
@@ -367,7 +333,9 @@ abstract contract OmnichainBaseTest is TestHelperOz5 {
         AccessControl(address(usdtAwayToken)).grantRole(usdtAwayToken.BRIDGE_ADMIN_ROLE(), address(usdtAwayOAdapter));
 
         // Grant bridge admin roles for USDAI and staked USDAI
+        AccessControl(address(usdai)).grantRole(keccak256("BRIDGE_ADMIN_ROLE"), address(usdaiHomeOAdapter));
         AccessControl(address(usdaiAwayToken)).grantRole(keccak256("BRIDGE_ADMIN_ROLE"), address(usdaiAwayOAdapter));
+        AccessControl(address(stakedUsdai)).grantRole(keccak256("BRIDGE_ADMIN_ROLE"), address(stakedUsdaiHomeOAdapter));
         AccessControl(address(stakedUsdaiAwayToken)).grantRole(
             keccak256("BRIDGE_ADMIN_ROLE"), address(stakedUsdaiAwayOAdapter)
         );

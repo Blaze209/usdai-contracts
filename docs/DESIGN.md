@@ -2,15 +2,14 @@
 
 ## USDai
 
-USDai is an
-[$PYUSD](https://www.paypal.com/us/digital-wallet/manage-money/crypto/pyusd)-backed
-stablecoin. It is primarily used as the on and off ramp to Staked USDai
-(sUSDai), but may offer other incentives in the future.
+USDai is an [$M](https://www.m0.org/)-backed stablecoin. It is primarily used
+as the on and off ramp to Staked USDai (sUSDai), but may offer other incentives
+in the future.
 
 ### Minting
 
 Users can mint USDai by depositing a supported stablecoin (e.g. USDC, USDT),
-which is swapped internally for PYUSD.
+which is swapped internally for M.
 
 ```solidity
 /**
@@ -35,9 +34,9 @@ function deposit(
 sequenceDiagram
     actor User
     User->>+USDai: Deposit stablecoin
-    USDai->>+Swap Adapter: Swap stablecoin for PYUSD
+    USDai->>+Swap Adapter: Swap stablecoin for M
     Swap Adapter->>+Uniswap: Swap
-    Swap Adapter->>+USDai: PYUSD tokens
+    Swap Adapter->>+USDai: M tokens
     USDai->>+User: Mint USDai tokens
 ```
 
@@ -69,7 +68,7 @@ sequenceDiagram
     actor User
     User->>+USDai: Withdraw stablecoin
     Note right of USDai: USDai burned
-    USDai->>+Swap Adapter: Swap PYUSD for stablecoin
+    USDai->>+Swap Adapter: Swap M for stablecoin
     Swap Adapter<<->>+Uniswap: Swap
     Swap Adapter->>+USDai: Stablecoin tokens
     USDai->>+User: Stablecoin tokens
@@ -77,22 +76,21 @@ sequenceDiagram
 
 ### Swap Adapters
 
-Swap adapters are responsible for swapping in and out of PYUSD with supported
+Swap adapters are responsible for swapping in and out of M with supported
 currencies. Currently, the default swap adapter is the
 [`UniswapV3SwapAdapter`](../src/swapAdapters/UniswapV3SwapAdapter.sol). Swap
 adapters accept optional data to help facilitate swapping. In the case of the
 `UniswapV3SwapAdapter`, the optional data specifies a path for the swap router
-to swap tokens that do not have a direct swap market with PYUSD.
+to swap tokens that do not have a direct swap market with M.
 
 ## sUSDai
 
 Staked USDai (sUSDai) is a yield bearing ERC4626 (ERC7540 redeem) vault token
-that earns yield from USDai PYUSD emissions and
-[LoanRouter](https://github.com/usdai-foundation/usdai-loan-router-contracts)
-loans. USDai can be staked for sUSDai, and later redeemed back for USDai.
-Unlike USDai, sUSDai is not a stablecoin, but is a free floating token,
-representing shares in an assortment of targeted lending positions and
-unallocated USDai.
+that earns yield from USDai M emissions and [MetaStreet Pool
+loans](https://docs.metastreet.xyz/liquidity-layer/overview). USDai can be
+staked for sUSDai, and later redeemed back for USDai. Unlike USDai, sUSDai is
+not a stablecoin, but a free floating token, representing shares in an
+assortment of targeted lending positions and unallocated USDai.
 
 ### Staking
 
@@ -117,9 +115,9 @@ for EOAs.
 
 ### Unstaking
 
-Users can unstake sUSDai to receive USDai at the current redemption share
-price. Unstaking is an asynchronous ERC7540 redeem operation. Redemptions are
-are processed at the end of a fixed time window (e.g. 30 days).
+Users can unstake sUSDai to receive USDai at the current redemption share price.
+Unstaking is an asynchronous ERC7540 redeem operation. Redemptions are subject
+to a timelock (e.g. 7 days).
 
 ```solidity
 function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId);
@@ -144,128 +142,124 @@ sequenceDiagram
 
 ### Position Managers
 
-The underlying asset held by the sUSDai vault is USDai, which is harvested for
-yield and deployed into loans with the help of position managers.
+The underlying asset held by the sUSDai vault is USDai, which is deployed and
+harvested for yield with position managers. The
+[`BasePositionManager`](../src/positionManagers/BasePositionManager.sol) is
+responsible for harvesting M emissions for the M held in the USDai contract.
+The [`PoolPositionManager`](../src/positionManagers/PoolPositionManager.sol) is
+responsible for depositing and withdrawing from MetaStreet pools.
 
-The `STRATEGY_ADMIN_ROLE` is required to interact with position managers.
-Currently, these operations are scheduled offchain and executed by a multisig,
-but in the future will be governance-driven.
-
-The [`BasePositionManager`](../src/positionManagers/BasePositionManager.sol) is
-responsible for harvesting base yield for the PYUSD held in the USDai contract.
-PYUSD base yield can be harvested with the `harvestBaseYield()` API:
+The `STRATEGY_ADMIN_ROLE` is required for harvesting yield and allocating the
+USDai asset to and from pools. Currently, these operations are scheduled
+offchain and executed by a multisig, but in the future will be an onchain
+strategy with governance-driven parameters.
 
 ```solidity
 /**
- * @notice Harvest base yield
- * @return Harvested USDai amount
- * @return Admin fee
+ * @notice Harvest yield from base token
+ * @param usdaiAmount USDai amount
  */
-function harvestBaseYield() external returns (uint256, uint256);
+function harvestBaseYield(
+    uint256 usdaiAmount
+) external;
 ```
 
 ```mermaid
 sequenceDiagram
     actor Strategy
     Strategy->>+sUSDai: Harvest Base Yield
-    sUSDai->>USDai: Harvest
-    USDai->>+Base Yield Escrow: Harvest
-    Base Yield Escrow->>+USDai: PYUSD tokens
-    USDai->>+sUSDai: Mint USDai tokens
+    sUSDai->>M: Claim yield
+    M->>+sUSDai: M tokens
+    sUSDai->>+USDai: Deposit M for USDai
+    USDai->>+sUSDai: USDai tokens
 ```
-
-The [`LoanRouterPositionManager`](../src/positionManagers/LoanRouterPositionManager.sol)
-is responsible for deploying funds for loans and depositing loan repayments.
-
-Loans are funded from deposits in the Deposit Timelock, which are released when
-a borrower executes a loan. Funds can be deposited into the Deposit Timelock
-for specific, predetermined loan terms with the `depositLoanTimelock()` API:
 
 ```solidity
 /**
- * @notice Deposit loan timelock
- * @param loanTermsHash Loan terms hash
- * @param usdaiAmount USDai amount
- * @param expiration Expiration timestamp
+ * @notice Deposit assets into a pool
+ * @param pool Address of the pool
+ * @param tick Pool tick
+ * @param usdaiAmount Amount of USDai to deposit
+ * @param poolCurrencyAmountMinimum Minimum amount of pool currency to deposit
+ * @param minShares Minimum shares expected
+ * @param data Data (for swap adapter)
+ * @return shares Amount of shares received
  */
-function depositLoanTimelock(bytes32 loanTermsHash, uint256 usdaiAmount, uint64 expiration) external;
+function poolDeposit(
+    address pool,
+    uint128 tick,
+    uint256 usdaiAmount,
+    uint256 poolCurrencyAmountMinimum,
+    uint256 minShares,
+    bytes calldata data
+) external returns (uint256 shares);
 ```
 
 ```mermaid
 sequenceDiagram
     actor Strategy
-    Strategy->>+sUSDai: Deposit Loan Timelock
-    sUSDai->>+Deposit Timelock: USDai tokens
+    Strategy->>+sUSDai: Deposit into Pool
+    sUSDai->>+USDai: Burn USDai for M
+    USDai->>+sUSDai: M tokens
+    sUSDai->>+Swap Adapter: Swap M for pool currency
+    Swap Adapter->>+sUSDai: Pool currency tokens
+    sUSDai->>+Pool: Deposit into Pool
 ```
-
-In case of loan terms changes or expiration, funds can be withdrawn from the
-Deposit Timelock with the `cancelLoanTimelock()` API:
 
 ```solidity
 /**
- * @notice Cancel loan timelock
- * @param loanTermsHash Loan terms hash
+ * @notice Withdraw assets from a pool after redemption
+ * @param pool Address of the pool
+ * @param tick Pool tick
+ * @param redemptionId ID of the redemption
+ * @param poolCurrencyAmountMaximum Maximum amount of pool currency to withdraw
+ * @param usdaiAmountMinimum Minimum amount of USDai to withdraw
+ * @param data Data (for swap adapter)
+ * @return USDai amount
  */
-function cancelLoanTimelock(
-    bytes32 loanTermsHash
-) external;
-```
-
-```mermaid
-sequenceDiagram
-    actor Strategy
-    Strategy->>+sUSDai: Cancel Loan Timelock
-    Deposit Timelock->>+sUSDai: USDai tokens
-```
-
-Principal and interest payments are automatically transferred to the sUSDai
-contract when a borrower makes a loan repayment. These repayments are then
-redeposited as USDai in the sUSDai contract with the `depositLoanRepayment()`
-API:
-
-```solidity
-/**
- * @notice Deposit loan repayment
- * @param currencyToken Currency token
- * @param depositAmount Deposit amount
- * @param usdaiAmountMinimum Minimum USDai amount
- * @param data Swap data
- */
-function depositLoanRepayment(
-    address currencyToken,
-    uint256 depositAmount,
+function poolWithdraw(
+    address pool,
+    uint128 tick,
+    uint128 redemptionId,
+    uint256 poolCurrencyAmountMaximum,
     uint256 usdaiAmountMinimum,
     bytes calldata data
-) external;
+) external returns (uint256);
 ```
 
 ```mermaid
 sequenceDiagram
     actor Strategy
-    Strategy->>+sUSDai: Deposit Loan Repayment
-    sUSDai->>+Swap Adapter: Swap Repayment for PYUSD
-    Swap Adapter->>+sUSDai: PYUSD tokens
-    sUSDai->>+USDai: Deposit PYUSD for USDai
+    Strategy->>+sUSDai: Withdraw from Pool
+    Pool->>+sUSDai: Pool currency tokens
+    sUSDai->>+Swap Adapter: Swap Pool currency for M
+    Swap Adapter->>+sUSDai: M tokens
+    sUSDai->>+USDai: Deposit M for USDai
     USDai->>+sUSDai: USDai tokens
 ```
 
 ### Share Pricing
 
 The net asset value of sUSDai is the combined value of unallocated USDai and
-its loan positions. Loan positions are valued conservatively with the remaining
-balance of the loan, or optimistically with the remaining balance of the loan
-plus the interest accrued since last repayment.
+the value of its lending pool debt positions. Lending pool debt positions are
+not guaranteed, as loans may default, so their value can be estimated
+conservatively (in the case of default and liquidation), or optimistically (in
+the case of repayment). Loans are assumed to be overcollateralized, so a
+conservative estimate only includes the principal of loans, while an optimistic
+estimate includes the principal plus real-time accrued interest of loans. As
+loans are repaid, the interest is realized and compounded into the principal of
+newly originated loans.
 
 The deposit share price is computed from the optimistic net asset value, while
 the redemption share price is computed from the conservative net asset value.
 In general, the deposit share price is greater than or equal to the redemption
-share price. If there are no active loans, they are equal.
+share price. If there are no active lending positions, they are equal.
 
-Since the net asset value is denominated in USDai (backed by PYUSD), a price
-oracle is needed to convert the loan position value, denominated in the loan
-currency (e.g. USDC), back to USDai. [`IPriceOracle`](../src/interfaces/IPriceOracle.sol) provides this interface.
-The current implementation, [`ChainlinkPriceOracle`](../src/oracles/ChainlinkPriceOracle.sol), uses Chainlink to price the
-exchange rate of the loan currencies.
+Since the net asset value is denominated in USDai (backed by M), a price oracle
+is needed to convert the lending pool position value, denominated in the pool
+currency, back to USDai. [`IPriceOracle`](../src/interfaces/IPriceOracle.sol) provides this interface. The current
+implementation, [`ChainlinkPriceOracle`](../src/oracles/ChainlinkPriceOracle.sol), uses Chainlink to price the exchange
+rate of the lending pool currencies.
 
 ```solidity
 /**
@@ -288,14 +282,15 @@ function price(
 
 ### Redemption Queue
 
-Redemptions in sUSDai are managed with a FIFO queue, which are collected
-throughout and processed at the end of fixed time windows (e.g. 30 days). In
-the future, the redemption queue will implement a built-in auction to bid on
-queue position.
+Redemptions in sUSDai are managed with a FIFO queue, subject to a timelock
+(e.g. 7 days). In the future, the redemption queue will implement a built-in
+auction to bid on queue position.
 
-Redemptions are serviced periodically by the `STRATEGY_ADMIN_ROLE`. When
-sufficient USDai is available, the strategy calls `serviceRedemptions()` to
-process redemptions in the queue:
+Redemptions are serviced periodically by the `STRATEGY_ADMIN_ROLE`, as lending
+positions may need to be unwound to provide sufficient USDai. This is currently
+scheduled offchain to optimize for latency and capital distribution across the
+lending pools. Once sufficient USDai is available, the strategy may call
+`serviceRedemptions()` to process redemptions in the queue.
 
 ```solidity
 /**

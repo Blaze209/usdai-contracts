@@ -11,14 +11,13 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {MulticallUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IUSDai} from "src/interfaces/IUSDai.sol";
 import {IMintableBurnable} from "src/interfaces/IMintableBurnable.sol";
 
 /**
  * @title Mock USDai ERC20
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract MockUSDai is
     IUSDai,
@@ -27,13 +26,17 @@ contract MockUSDai is
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
     MulticallUpgradeable,
-    PausableUpgradeable,
     ReentrancyGuardUpgradeable,
     AccessControlUpgradeable
 {
     /*------------------------------------------------------------------------*/
     /* Constant */
     /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Minter role
+     */
+    bytes32 internal constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
 
     /**
      * @notice Base yield recipient role
@@ -67,54 +70,13 @@ contract MockUSDai is
         0xd21f45001ca28b8905ef527bd860800b2646ce7faf578b00aa2e89af23551500;
 
     /*------------------------------------------------------------------------*/
-    /* Immutable State */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @notice Bridge adapter contract
-     */
-    address internal immutable _bridgeAdapter;
-
-    /*------------------------------------------------------------------------*/
-    /* Structures */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @custom:storage-location erc7201:USDai.supply
-     */
-    struct Supply {
-        uint256 bridged;
-    }
-
-    /**
-     * @custom:storage-location erc7201:USDai.baseYieldAccrual
-     */
-    struct BaseYieldAccrual {
-        RateTier[] rateTiers;
-        uint256 accrued;
-        uint64 timestamp;
-    }
-
-    /**
-     * @custom:storage-location erc7201:USDai.blacklist
-     */
-    struct Blacklist {
-        mapping(address => bool) blacklist;
-    }
-
-    /*------------------------------------------------------------------------*/
     /* Constructor */
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice MockUSDai Constructor
-     * @param bridgeAdapter_ Bridge adapter contract
+     * @notice USD.ai Constructor
      */
-    constructor(
-        address bridgeAdapter_
-    ) {
-        _bridgeAdapter = bridgeAdapter_;
-
+    constructor() {
         _disableInitializers();
     }
 
@@ -126,8 +88,8 @@ contract MockUSDai is
      * @notice Initialize the contract
      */
     function initialize() public initializer {
-        __ERC20_init("USDai", "USDai");
-        __ERC20Permit_init("USDai");
+        __ERC20_init("USD.ai", "USDai");
+        __ERC20Permit_init("USD.ai");
         __Multicall_init();
         __ReentrancyGuard_init();
         __AccessControl_init();
@@ -175,14 +137,6 @@ contract MockUSDai is
         _;
     }
 
-    /**
-     * @notice Only bridge adapter modifier
-     */
-    modifier onlyBridgeAdapter() {
-        if (msg.sender != _bridgeAdapter) revert InvalidAddress();
-        _;
-    }
-
     /*------------------------------------------------------------------------*/
     /* Getters  */
     /*------------------------------------------------------------------------*/
@@ -222,6 +176,13 @@ contract MockUSDai is
      */
     function bridgedSupply() public view returns (uint256) {
         return _getSupplyStorage().bridged;
+    }
+
+    /**
+     * @inheritdoc IUSDai
+     */
+    function supplyCap() public view returns (uint256) {
+        return _getSupplyStorage().cap;
     }
 
     /**
@@ -425,7 +386,7 @@ contract MockUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function mint(address to, uint256 amount) external onlyBridgeAdapter {
+    function mint(address to, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         _mint(to, amount);
 
         /* Update bridged supply */
@@ -435,7 +396,7 @@ contract MockUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function burn(address from, uint256 amount) external onlyBridgeAdapter {
+    function burn(address from, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         _burn(from, amount);
 
         /* Update bridged supply */
@@ -472,24 +433,6 @@ contract MockUSDai is
     }
 
     /*------------------------------------------------------------------------*/
-    /* Pause Admin API */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @inheritdoc IUSDai
-     */
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _pause();
-    }
-
-    /**
-     * @inheritdoc IUSDai
-     */
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
-    }
-
-    /*------------------------------------------------------------------------*/
     /* Base Escrow API */
     /*------------------------------------------------------------------------*/
 
@@ -504,6 +447,34 @@ contract MockUSDai is
 
         /* Emit rate tiers set event */
         emit BaseYieldRateTiersSet(rateTiers);
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Permissioned API */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Set supply cap
+     * @param cap Supply cap
+     */
+    function setSupplyCap(
+        uint256 cap
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getSupplyStorage().cap = cap;
+
+        /* Emit supply cap set event */
+        emit SupplyCapSet(cap);
+    }
+
+    /**
+     * @notice Convert base token
+     * @param amount Amount
+     */
+    function convertBaseToken(
+        uint256 amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        /* Emit base token converted event */
+        emit BaseTokenConverted(msg.sender, amount);
     }
 
     /*------------------------------------------------------------------------*/

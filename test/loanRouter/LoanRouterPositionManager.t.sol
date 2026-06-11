@@ -88,7 +88,7 @@ contract MockLender is ILoanRouterHooks, IERC165, IERC721Receiver {
 
 /**
  * @title Loan Router Position Manager Tests
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract LoanRouterPositionManagerTest is BaseLoanRouterTest {
     /*------------------------------------------------------------------------*/

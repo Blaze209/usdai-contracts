@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /**
  * @title Queued Depositor Receipt Token Interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface IReceiptToken {
     /*------------------------------------------------------------------------*/

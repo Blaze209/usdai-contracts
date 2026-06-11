@@ -10,7 +10,7 @@ import "./interfaces/IStakedUSDai.sol";
 
 /**
  * @title Redemption Logic
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 library RedemptionLogic {
     using EnumerableSet for EnumerableSet.UintSet;
@@ -156,7 +156,7 @@ library RedemptionLogic {
      */
     function _nextRedemptionTimestamp(
         uint64 genesisTimestamp
-    ) internal view returns (uint64) {
+    ) public view returns (uint64) {
         /* Compute count */
         uint64 count = block.timestamp >= genesisTimestamp
             ? uint64((block.timestamp - genesisTimestamp) / REDEMPTION_WINDOW + 1)

@@ -52,9 +52,8 @@ contract USDaiServiceQueuedDepositWithKyberTest is BaseTest {
 
         vm.startPrank(0x783B08aA21DE056717173f72E04Be0E91328A07b);
 
-        USDai usdaiImpl = new USDai(
-            swapAdapter, address(new BaseYieldEscrow(address(usdai), address(PYUSD))), address(stakedUsdai), address(0)
-        );
+        USDai usdaiImpl =
+            new USDai(swapAdapter, address(new BaseYieldEscrow(address(usdai), WRAPPED_M_TOKEN)), address(stakedUsdai));
         vm.etch(address(usdai), address(usdaiImpl).code);
 
         // Deploy USDai implemetation
@@ -81,11 +80,12 @@ contract USDaiServiceQueuedDepositWithKyberTest is BaseTest {
         );
         vm.stopPrank();
 
-        /* Update deposit cap */
+        /* Update deposit cap and supply cap */
         vm.startPrank(0x5F0BC72FB5952b2f3F2E11404398eD507B25841F);
 
         queuedDepositor.updateDepositCap(type(uint256).max, true);
         queuedDepositor.updateDepositEidWhitelist(0, 0, true);
+        usdai.setSupplyCap(type(uint256).max);
 
         vm.stopPrank();
     }

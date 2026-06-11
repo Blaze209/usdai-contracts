@@ -30,7 +30,7 @@ import "./interfaces/IMintableBurnable.sol";
 
 /**
  * @title Staked USDai ERC20
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract StakedUSDai is
     ERC165Upgradeable,
@@ -57,7 +57,7 @@ contract StakedUSDai is
     /**
      * @notice Implementation version
      */
-    string public constant IMPLEMENTATION_VERSION = "1.8";
+    string public constant IMPLEMENTATION_VERSION = "1.7";
 
     /**
      * @notice Fixed point scale
@@ -76,26 +76,26 @@ contract StakedUSDai is
     /**
      * @notice sUSDai Constructor
      * @param usdai_ USDai token
+     * @param baseToken_ Base token
      * @param priceOracle_ Price oracle
      * @param loanRouter_ Loan router
      * @param adminFeeRecipient_ Admin fee recipient
      * @param genesisTimestamp_ Genesis timestamp
      * @param baseYieldAdminFeeRate_ Base yield admin fee rate
      * @param loanRouterAdminFeeRate_ Loan router admin fee rate
-     * @param bridgeAdapter_ Bridge adapter contract
      */
     constructor(
         address usdai_,
+        address baseToken_,
         address priceOracle_,
         address loanRouter_,
         address adminFeeRecipient_,
         uint64 genesisTimestamp_,
         uint256 baseYieldAdminFeeRate_,
-        uint256 loanRouterAdminFeeRate_,
-        address bridgeAdapter_
+        uint256 loanRouterAdminFeeRate_
     )
-        StakedUSDaiStorage(usdai_, priceOracle_, adminFeeRecipient_, genesisTimestamp_, bridgeAdapter_)
-        BasePositionManager(baseYieldAdminFeeRate_)
+        StakedUSDaiStorage(usdai_, priceOracle_, adminFeeRecipient_, genesisTimestamp_)
+        BasePositionManager(baseToken_, baseYieldAdminFeeRate_)
         LoanRouterPositionManager(loanRouter_, loanRouterAdminFeeRate_)
     {
         _disableInitializers();
@@ -123,6 +123,18 @@ contract StakedUSDai is
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
+    /**
+     * @notice Migrate the contract
+     * @dev Update USDai loan repayment balance with deposit timelock refunds
+     * prior to deposit timelock refund support in LoanRouterPositionManager.
+     */
+    function migrate() external reinitializer(3) {
+        address usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+
+        _getLoansStorage().repaymentBalances[usdc].repayment =
+            IERC20(usdc).balanceOf(address(this)) - _getLoansStorage().repaymentBalances[usdc].adminFee;
+    }
+
     /*------------------------------------------------------------------------*/
     /* Modifiers  */
     /*------------------------------------------------------------------------*/
@@ -146,14 +158,6 @@ contract StakedUSDai is
         address value
     ) {
         if (value == address(0)) revert InvalidAddress();
-        _;
-    }
-
-    /**
-     * @notice Only bridge adapter modifier
-     */
-    modifier onlyBridgeAdapter() {
-        if (msg.sender != _bridgeAdapter) revert InvalidAddress();
         _;
     }
 
@@ -765,7 +769,7 @@ contract StakedUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function mint(address to, uint256 amount) external whenNotPaused onlyBridgeAdapter {
+    function mint(address to, uint256 amount) external whenNotPaused onlyRole(BRIDGE_ADMIN_ROLE) {
         /* Mint supply */
         _mint(to, amount);
 
@@ -776,7 +780,7 @@ contract StakedUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function burn(address from, uint256 amount) external whenNotPaused onlyBridgeAdapter {
+    function burn(address from, uint256 amount) external whenNotPaused onlyRole(BRIDGE_ADMIN_ROLE) {
         /* Burn supply */
         _burn(from, amount);
 

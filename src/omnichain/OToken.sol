@@ -11,7 +11,7 @@ import "../interfaces/IMintableBurnable.sol";
 
 /**
  * @title Omnichain Token
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract OToken is
     IMintableBurnable,
@@ -51,7 +51,7 @@ contract OToken is
      * @param symbol_ Token symbol
      * @param admin Default admin address
      */
-    function initialize(string memory name_, string memory symbol_, address admin) external initializer {
+    function initialize(string memory name_, string memory symbol_, address admin) public initializer {
         __ERC20_init(name_, symbol_);
         __ERC20Permit_init(name_);
         __Multicall_init();
