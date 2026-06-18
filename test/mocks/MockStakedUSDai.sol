@@ -26,7 +26,7 @@ import {IMintableBurnable} from "src/interfaces/IMintableBurnable.sol";
 
 /**
  * @title Mock Staked USDai ERC20
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract MockStakedUSDai is
     ERC165Upgradeable,
@@ -65,15 +65,14 @@ contract MockStakedUSDai is
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice MockStakedUSDai Constructor
+     * @notice sUSD.ai Constructor
      */
     constructor(
         address usdai_,
-        address loanRouter_,
-        address bridgeAdapter_
+        address loanRouter_
     )
-        StakedUSDaiStorage(usdai_, address(0), address(0), uint64(block.timestamp), bridgeAdapter_)
-        BasePositionManager(0)
+        StakedUSDaiStorage(usdai_, address(0), address(0), uint64(block.timestamp))
+        BasePositionManager(address(0), 0)
         LoanRouterPositionManager(loanRouter_, 0)
     {
         _disableInitializers();
@@ -88,8 +87,8 @@ contract MockStakedUSDai is
      */
     function initialize() external initializer {
         __ERC165_init();
-        __ERC20_init("Staked USDai", "sUSDai");
-        __ERC20Permit_init("Staked USDai");
+        __ERC20_init("Staked USD.ai", "sUSDai");
+        __ERC20Permit_init("Staked USD.ai");
         __Multicall_init();
         __ReentrancyGuard_init();
         __AccessControl_init();
@@ -134,14 +133,6 @@ contract MockStakedUSDai is
         if (_usdai.isBlacklisted(value)) {
             revert BlacklistedAddress(value);
         }
-        _;
-    }
-
-    /**
-     * @notice Only bridge adapter modifier
-     */
-    modifier onlyBridgeAdapter() {
-        if (msg.sender != _bridgeAdapter) revert InvalidAddress();
         _;
     }
 
@@ -737,7 +728,7 @@ contract MockStakedUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function mint(address to, uint256 amount) external onlyBridgeAdapter {
+    function mint(address to, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         /* Mint supply */
         _mint(to, amount);
 
@@ -748,7 +739,7 @@ contract MockStakedUSDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function burn(address from, uint256 amount) external onlyBridgeAdapter {
+    function burn(address from, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         /* Burn supply */
         _burn(from, amount);
 

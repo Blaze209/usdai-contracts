@@ -5,7 +5,7 @@ import {IUSDai} from "./IUSDai.sol";
 
 /**
  * @title Base token yield escrow interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface IBaseYieldEscrow {
     /*------------------------------------------------------------------------*/

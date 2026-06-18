@@ -15,7 +15,7 @@ import {Deployer} from "./utils/Deployer.s.sol";
 
 contract DeployTestEnvironment is Deployer {
     function run(
-        address baseToken,
+        address wrappedMToken,
         address swapRouter,
         address mNavPriceFeed,
         address loanRouter,
@@ -23,7 +23,7 @@ contract DeployTestEnvironment is Deployer {
         address[] calldata priceFeeds
     ) public broadcast useDeployment returns (address, address, address, address) {
         // Deploy UniswapV3SwapAdapter
-        UniswapV3SwapAdapter swapAdapter = new UniswapV3SwapAdapter(baseToken, swapRouter, tokens);
+        UniswapV3SwapAdapter swapAdapter = new UniswapV3SwapAdapter(wrappedMToken, swapRouter, tokens);
         console.log("UniswapV3SwapAdapter", address(swapAdapter));
 
         // Deploy ChainlinkPriceOracle
@@ -31,9 +31,7 @@ contract DeployTestEnvironment is Deployer {
         console.log("ChainlinkPriceOracle", address(priceOracle));
 
         // Deploy USDai implemetation
-        USDai USDaiImpl = new USDai(
-            address(swapAdapter), _deployment.baseYieldEscrow, _deployment.stakedUSDai, _deployment.oAdapterUSDai
-        );
+        USDai USDaiImpl = new USDai(address(swapAdapter), _deployment.baseYieldEscrow, _deployment.stakedUSDai);
         console.log("USDai implementation", address(USDaiImpl));
 
         // Deploy USDai proxy
@@ -45,13 +43,13 @@ contract DeployTestEnvironment is Deployer {
         // Deploy StakedUSDai
         StakedUSDai stakedUSDaiImpl = new StakedUSDai(
             address(USDai_),
+            wrappedMToken,
             address(priceOracle),
             loanRouter,
             msg.sender,
             uint64(block.timestamp),
             100,
-            100,
-            _deployment.oAdapterStakedUSDai
+            100
         );
         console.log("StakedUSDai implementation", address(stakedUSDaiImpl));
 

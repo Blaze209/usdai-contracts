@@ -100,6 +100,28 @@ contract USDaiDepositTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testFuzz__USDaiDepositExceedsSupplyCap(
+        uint256 amount
+    ) public {
+        vm.assume(amount > 1000 ether);
+        vm.assume(amount <= 10_000_000 ether);
+
+        /* Set supply cap */
+        vm.startPrank(users.deployer);
+        usdai.setSupplyCap(1000 ether);
+        vm.stopPrank();
+
+        // User approves USDai to spend their USD
+        vm.startPrank(users.normalUser1);
+        usd.approve(address(usdai), amount);
+
+        /* User deposits 1000 USD into USDai */
+        vm.expectRevert(IUSDai.SupplyCapExceeded.selector);
+        usdai.deposit(address(usd), amount, 0, users.normalUser1);
+
+        vm.stopPrank();
+    }
+
     function test__USDaiDepositBlacklistedAddress() public {
         vm.startPrank(users.deployer);
         usdai.setBlacklist(users.normalUser1, true);

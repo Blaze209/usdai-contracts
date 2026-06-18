@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /**
  * @title Predeposit Vault Interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface IPredepositVault {
     /*------------------------------------------------------------------------*/

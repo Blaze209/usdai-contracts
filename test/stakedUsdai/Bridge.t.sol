@@ -27,7 +27,7 @@ contract StakedUSDaiBridgeTest is BaseTest {
         uint256 totalShares = stakedUsdai.totalShares();
         assertEq(totalShares, susdaiBalance + 1e6);
 
-        vm.startPrank(users.mockOAdapter);
+        vm.startPrank(users.manager);
         stakedUsdai.burn(users.normalUser1, 1 ether);
         vm.stopPrank();
 
@@ -36,14 +36,14 @@ contract StakedUSDaiBridgeTest is BaseTest {
     }
 
     function test__StakedUSDaiBridge_Mint() public {
-        vm.startPrank(users.mockOAdapter);
+        vm.startPrank(users.manager);
         stakedUsdai.burn(users.normalUser1, 1 ether);
         vm.stopPrank();
 
         uint256 totalShares = stakedUsdai.totalShares();
         assertEq(totalShares, susdaiBalance + 1e6);
 
-        vm.startPrank(users.mockOAdapter);
+        vm.startPrank(users.manager);
         stakedUsdai.mint(users.normalUser1, 1 ether);
         vm.stopPrank();
 

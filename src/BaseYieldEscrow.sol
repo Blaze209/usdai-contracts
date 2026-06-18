@@ -12,7 +12,7 @@ import "./interfaces/IUSDai.sol";
 
 /**
  * @title Base Yield Escrow
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract BaseYieldEscrow is IBaseYieldEscrow, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;

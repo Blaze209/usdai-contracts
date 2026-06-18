@@ -6,14 +6,14 @@ import {MockUSDai} from "./MockUSDai.sol";
 
 /**
  * @title Mock USDai with Custom Slippage
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract MockUSDaiSlippage is MockUSDai {
     uint256 internal immutable _SLIPPAGE_RATE;
 
     constructor(
         uint256 slippageRate_
-    ) MockUSDai(address(0)) {
+    ) {
         _SLIPPAGE_RATE = slippageRate_;
     }
 

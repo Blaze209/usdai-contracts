@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title USDai Interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface IUSDai is IERC20 {
     /*------------------------------------------------------------------------*/
@@ -21,6 +21,11 @@ interface IUSDai is IERC20 {
      * @notice Invalid amount
      */
     error InvalidAmount();
+
+    /**
+     * @notice Exceeded supply cap
+     */
+    error SupplyCapExceeded();
 
     /**
      * @notice Invalid decimals
@@ -48,6 +53,30 @@ interface IUSDai is IERC20 {
     struct RateTier {
         uint256 rate;
         uint256 threshold;
+    }
+
+    /**
+     * @custom:storage-location erc7201:USDai.supply
+     */
+    struct Supply {
+        uint256 bridged;
+        uint256 cap;
+    }
+
+    /**
+     * @custom:storage-location erc7201:USDai.baseYieldAccrual
+     */
+    struct BaseYieldAccrual {
+        RateTier[] rateTiers;
+        uint256 accrued;
+        uint64 timestamp;
+    }
+
+    /**
+     * @custom:storage-location erc7201:USDai.blacklist
+     */
+    struct Blacklist {
+        mapping(address => bool) blacklist;
     }
 
     /*------------------------------------------------------------------------*/
@@ -107,10 +136,23 @@ interface IUSDai is IERC20 {
     event BlacklistUpdated(address indexed account, bool isBlacklisted);
 
     /**
+     * @notice Supply cap set
+     * @param supplyCap Supply cap
+     */
+    event SupplyCapSet(uint256 supplyCap);
+
+    /**
      * @notice Base yield rate tiers set
      * @param rateTiers Rate tiers
      */
     event BaseYieldRateTiersSet(RateTier[] rateTiers);
+
+    /**
+     * @notice Base token converted event
+     * @param converter Converter
+     * @param amount Amount
+     */
+    event BaseTokenConverted(address indexed converter, uint256 amount);
 
     /*------------------------------------------------------------------------*/
     /* Getters */
@@ -133,6 +175,12 @@ interface IUSDai is IERC20 {
      * @return Bridged supply
      */
     function bridgedSupply() external view returns (uint256);
+
+    /**
+     * @notice Get supply cap
+     * @return Supply cap
+     */
+    function supplyCap() external view returns (uint256);
 
     /**
      * @notice Get base yield accrued
@@ -240,22 +288,16 @@ interface IUSDai is IERC20 {
     function setBlacklist(address account, bool isBlacklisted) external;
 
     /*------------------------------------------------------------------------*/
-    /* Pause Admin API */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @notice Pause the contract
-     */
-    function pause() external;
-
-    /**
-     * @notice Unpause the contract
-     */
-    function unpause() external;
-
-    /*------------------------------------------------------------------------*/
     /* Permissioned API */
     /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Set supply cap
+     * @param cap Supply cap
+     */
+    function setSupplyCap(
+        uint256 cap
+    ) external;
 
     /**
      * @notice Set rate tiers

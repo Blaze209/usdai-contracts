@@ -15,7 +15,7 @@ import {LoanRouterPositionManager} from "./LoanRouterPositionManager.sol";
 
 /**
  * @title Loan Router Position Manager Logic
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 library LoanRouterPositionManagerLogic {
     using EnumerableSet for EnumerableSet.AddressSet;

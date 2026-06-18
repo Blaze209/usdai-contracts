@@ -2,7 +2,6 @@
 pragma solidity 0.8.29;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/interfaces/IERC5267.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -12,7 +11,6 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import "./interfaces/IUSDai.sol";
 import "./interfaces/ISwapAdapter.sol";
@@ -23,7 +21,7 @@ import "./interfaces/external/IBlacklist.sol";
 
 /**
  * @title USDai ERC20
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract USDai is
     IUSDai,
@@ -32,7 +30,6 @@ contract USDai is
     ERC20Upgradeable,
     ERC20PermitUpgradeable,
     MulticallUpgradeable,
-    PausableUpgradeable,
     ReentrancyGuardUpgradeable,
     AccessControlUpgradeable
 {
@@ -45,17 +42,27 @@ contract USDai is
     /**
      * @notice Implementation version
      */
-    string public constant IMPLEMENTATION_VERSION = "1.5";
+    string public constant IMPLEMENTATION_VERSION = "1.4";
+
+    /**
+     * @notice Bridge admin role
+     */
+    bytes32 internal constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
+
+    /**
+     * @notice Deposit admin role
+     */
+    bytes32 internal constant DEPOSIT_ADMIN_ROLE = keccak256("DEPOSIT_ADMIN_ROLE");
+
+    /**
+     * @notice Convert base token admin role
+     */
+    bytes32 internal constant CONVERT_BASE_TOKEN_ADMIN_ROLE = keccak256("CONVERT_BASE_TOKEN_ADMIN_ROLE");
 
     /**
      * @notice Blacklist admin role
      */
     bytes32 internal constant BLACKLIST_ADMIN_ROLE = keccak256("BLACKLIST_ADMIN_ROLE");
-
-    /**
-     * @notice Pause admin role
-     */
-    bytes32 internal constant PAUSE_ADMIN_ROLE = keccak256("PAUSE_ADMIN_ROLE");
 
     /**
      * @notice Supply storage location
@@ -112,38 +119,6 @@ contract USDai is
      */
     address internal immutable _baseYieldRecipient;
 
-    /**
-     * @notice Bridge adapter contract
-     */
-    address internal immutable _bridgeAdapter;
-
-    /*------------------------------------------------------------------------*/
-    /* Structures */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @custom:storage-location erc7201:USDai.supply
-     */
-    struct Supply {
-        uint256 bridged;
-    }
-
-    /**
-     * @custom:storage-location erc7201:USDai.baseYieldAccrual
-     */
-    struct BaseYieldAccrual {
-        RateTier[] rateTiers;
-        uint256 accrued;
-        uint64 timestamp;
-    }
-
-    /**
-     * @custom:storage-location erc7201:USDai.blacklist
-     */
-    struct Blacklist {
-        mapping(address => bool) blacklist;
-    }
-
     /*------------------------------------------------------------------------*/
     /* Constructor */
     /*------------------------------------------------------------------------*/
@@ -153,9 +128,8 @@ contract USDai is
      * @param swapAdapter_ Swap Adapter
      * @param baseYieldEscrow_ Base token yield escrow
      * @param baseYieldRecipient_ Base yield recipient
-     * @param bridgeAdapter_ Bridge adapter contract
      */
-    constructor(address swapAdapter_, address baseYieldEscrow_, address baseYieldRecipient_, address bridgeAdapter_) {
+    constructor(address swapAdapter_, address baseYieldEscrow_, address baseYieldRecipient_) {
         _disableInitializers();
 
         _swapAdapter = ISwapAdapter(swapAdapter_);
@@ -163,7 +137,6 @@ contract USDai is
         _scaleFactor = 10 ** (18 - IERC20Metadata(_swapAdapter.baseToken()).decimals());
         _baseYieldEscrow = IBaseYieldEscrow(baseYieldEscrow_);
         _baseYieldRecipient = baseYieldRecipient_;
-        _bridgeAdapter = bridgeAdapter_;
     }
 
     /*------------------------------------------------------------------------*/
@@ -176,7 +149,7 @@ contract USDai is
      */
     function initialize(
         address admin
-    ) external initializer {
+    ) public initializer {
         __ERC20_init("USDai", "USDai");
         __ERC20Permit_init("USDai");
         __Multicall_init();
@@ -226,14 +199,6 @@ contract USDai is
         _;
     }
 
-    /**
-     * @notice Only bridge adapter modifier
-     */
-    modifier onlyBridgeAdapter() {
-        if (msg.sender != _bridgeAdapter) revert InvalidAddress();
-        _;
-    }
-
     /*------------------------------------------------------------------------*/
     /* Getters  */
     /*------------------------------------------------------------------------*/
@@ -257,6 +222,13 @@ contract USDai is
      */
     function bridgedSupply() public view returns (uint256) {
         return _getSupplyStorage().bridged;
+    }
+
+    /**
+     * @inheritdoc IUSDai
+     */
+    function supplyCap() public view returns (uint256) {
+        return _getSupplyStorage().cap;
     }
 
     /**
@@ -287,8 +259,15 @@ contract USDai is
         ) return false;
 
         /* Check USDC and USDT blacklists */
-        return IBlacklist(0xaf88d065e77c8cC2239327C5EDb3A432268e5831).isBlacklisted(account)
-            || IBlacklist(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9).isBlocked(account);
+        try IBlacklist(0xaf88d065e77c8cC2239327C5EDb3A432268e5831).isBlacklisted(account) returns (bool blacklisted) {
+            if (blacklisted) return true;
+        } catch {}
+
+        try IBlacklist(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9).isBlocked(account) returns (bool blocked) {
+            if (blocked) return true;
+        } catch {}
+
+        return false;
     }
 
     /*------------------------------------------------------------------------*/
@@ -334,7 +313,7 @@ contract USDai is
      */
     function _scale(
         uint256 value
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         return value * _scaleFactor;
     }
 
@@ -345,7 +324,7 @@ contract USDai is
      */
     function _unscale(
         uint256 value
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         return value / _scaleFactor;
     }
 
@@ -356,7 +335,7 @@ contract USDai is
      */
     function _unscaleUp(
         uint256 value
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         return (value + _scaleFactor - 1) / _scaleFactor;
     }
 
@@ -392,6 +371,11 @@ contract USDai is
             usdaiAmount = _scale(_swapAdapter.swapIn(depositToken, depositAmount, _unscaleUp(usdaiAmountMinimum), data));
         } else {
             usdaiAmount = _scale(depositAmount);
+        }
+
+        /* Check if the supply cap is exceeded */
+        if (!hasRole(DEPOSIT_ADMIN_ROLE, msg.sender) && usdaiAmount + totalSupply() + bridgedSupply() > supplyCap()) {
+            revert SupplyCapExceeded();
         }
 
         /* Mint to the recipient */
@@ -524,7 +508,7 @@ contract USDai is
         uint256 depositAmount,
         uint256 usdaiAmountMinimum,
         address recipient
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         return _deposit(depositToken, depositAmount, usdaiAmountMinimum, recipient, msg.data[0:0]);
     }
 
@@ -537,7 +521,7 @@ contract USDai is
         uint256 usdaiAmountMinimum,
         address recipient,
         bytes calldata data
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         return _deposit(depositToken, depositAmount, usdaiAmountMinimum, recipient, data);
     }
 
@@ -549,7 +533,7 @@ contract USDai is
         uint256 usdaiAmount,
         uint256 withdrawAmountMinimum,
         address recipient
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         return _withdraw(withdrawToken, usdaiAmount, withdrawAmountMinimum, recipient, msg.data[0:0]);
     }
 
@@ -562,7 +546,7 @@ contract USDai is
         uint256 withdrawAmountMinimum,
         address recipient,
         bytes calldata data
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         return _withdraw(withdrawToken, usdaiAmount, withdrawAmountMinimum, recipient, data);
     }
 
@@ -573,7 +557,7 @@ contract USDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function mint(address to, uint256 amount) external whenNotPaused onlyBridgeAdapter {
+    function mint(address to, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         _mint(to, amount);
 
         /* Update bridged supply */
@@ -583,7 +567,7 @@ contract USDai is
     /**
      * @inheritdoc IMintableBurnable
      */
-    function burn(address from, uint256 amount) external whenNotPaused onlyBridgeAdapter {
+    function burn(address from, uint256 amount) external onlyRole(BRIDGE_ADMIN_ROLE) {
         _burn(from, amount);
 
         /* Update bridged supply */
@@ -657,6 +641,18 @@ contract USDai is
     /**
      * @inheritdoc IUSDai
      */
+    function setSupplyCap(
+        uint256 cap
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getSupplyStorage().cap = cap;
+
+        /* Emit supply cap set event */
+        emit SupplyCapSet(cap);
+    }
+
+    /**
+     * @inheritdoc IUSDai
+     */
     function setBlacklist(address account, bool blacklisted) external onlyRole(BLACKLIST_ADMIN_ROLE) {
         _getBlacklistStorage().blacklist[account] = blacklisted;
 
@@ -665,17 +661,36 @@ contract USDai is
     }
 
     /**
-     * @inheritdoc IUSDai
+     * @notice Convert base token
+     * @param amount Amount
      */
-    function pause() external onlyRole(PAUSE_ADMIN_ROLE) {
-        _pause();
-    }
+    function convertBaseToken(
+        uint256 amount
+    ) external onlyRole(CONVERT_BASE_TOKEN_ADMIN_ROLE) {
+        /* Wrapped M token */
+        address wrappedMToken = 0x437cc33344a0B27A429f795ff6B469C72698B291;
 
-    /**
-     * @inheritdoc IUSDai
-     */
-    function unpause() external onlyRole(PAUSE_ADMIN_ROLE) {
-        _unpause();
+        /* Validate amount */
+        if (IERC20(wrappedMToken).balanceOf(address(this)) < amount || amount == 0) {
+            revert InvalidAmount();
+        }
+
+        /* Set initial accrual timestamp to the current timestamp */
+        if (_getBaseYieldAccrualStorage().timestamp == 0) {
+            _getBaseYieldAccrualStorage().timestamp = uint64(block.timestamp);
+        }
+
+        /* Accrue base yield */
+        _accrue();
+
+        /* Transfer token to caller */
+        IERC20(wrappedMToken).safeTransfer(msg.sender, amount);
+
+        /* Transfer base token from caller to this contract */
+        _baseToken.safeTransferFrom(msg.sender, address(this), amount);
+
+        /* Emit converted base token event */
+        emit BaseTokenConverted(msg.sender, amount);
     }
 
     /*------------------------------------------------------------------------*/
@@ -689,7 +704,6 @@ contract USDai is
         bytes4 interfaceId
     ) public view virtual override(AccessControlUpgradeable, ERC165Upgradeable) returns (bool) {
         return interfaceId == type(IERC20).interfaceId || interfaceId == type(IUSDai).interfaceId
-            || interfaceId == type(IMintableBurnable).interfaceId || interfaceId == type(IERC20Permit).interfaceId
-            || interfaceId == type(IERC5267).interfaceId || super.supportsInterface(interfaceId);
+            || interfaceId == type(IMintableBurnable).interfaceId || super.supportsInterface(interfaceId);
     }
 }

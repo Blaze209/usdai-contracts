@@ -5,7 +5,7 @@ import "./IBasePositionManager.sol";
 
 /**
  * @title Staked USDai Interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface IStakedUSDai is IBasePositionManager {
     /*------------------------------------------------------------------------*/

@@ -34,5 +34,4 @@ typechain-types
 cache
 
 # Tests
-tests/.bin
-tests/.latest.json
+tests

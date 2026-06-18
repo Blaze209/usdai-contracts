@@ -10,7 +10,7 @@ import {TestERC20} from "../tokens/TestERC20.sol";
 
 /**
  * @title PredepositVault Test Suite
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 contract PredepositVaultTest is Test {
     /*------------------------------------------------------------------------*/

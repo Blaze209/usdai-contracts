@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /**
  * @title Swap Adapter Interface
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 interface ISwapAdapter {
     /*------------------------------------------------------------------------*/

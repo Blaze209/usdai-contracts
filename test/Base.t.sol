@@ -31,12 +31,15 @@ import {TestPYUSDPriceFeed} from "../script/DeployTestPYUSDPriceFeed.s.sol";
 /**
  * @title Base test setup
  *
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  * @author Modified from https://github.com/PaulRBerg/prb-proxy/blob/main/test/Base.t.sol
  *
  * @dev Sets up users and token contracts
  */
 abstract contract BaseTest is Test {
+    /* Wrapped M */
+    address internal constant WRAPPED_M_TOKEN = 0x437cc33344a0B27A429f795ff6B469C72698B291;
+
     /* PYUSD OFT adapter */
     address internal constant PYUSD_OFT_ADAPTER = 0xFaB5891ED867a1195303251912013b92c4fc3a1D;
 
@@ -102,7 +105,6 @@ abstract contract BaseTest is Test {
         address payable manager;
         address payable feeRecipient;
         address payable borrower;
-        address payable mockOAdapter;
     }
 
     Users internal users;
@@ -130,8 +132,7 @@ abstract contract BaseTest is Test {
             admin: createUser("admin"),
             manager: createUser("manager"),
             feeRecipient: createUser("feeRecipient"),
-            borrower: createUser("borrower"),
-            mockOAdapter: createUser("mockOAdapter")
+            borrower: createUser("borrower")
         });
 
         /* Fund users */
@@ -295,8 +296,7 @@ abstract contract BaseTest is Test {
         vm.startPrank(users.deployer);
 
         /* Deploy usdai implementation */
-        IUSDai usdaiImpl =
-            new USDai(address(uniswapV3SwapAdapter), address(baseYieldEscrow), address(stakedUsdai), users.mockOAdapter);
+        IUSDai usdaiImpl = new USDai(address(uniswapV3SwapAdapter), address(baseYieldEscrow), address(stakedUsdai));
 
         /* Deploy usdai proxy */
         TransparentUpgradeableProxy usdaiProxy = new TransparentUpgradeableProxy(
@@ -305,6 +305,9 @@ abstract contract BaseTest is Test {
 
         /* Deploy usdai */
         usdai = IUSDai(address(usdaiProxy));
+
+        /* Set supply cap */
+        usdai.setSupplyCap(type(uint256).max);
 
         /* Grant USDai role to Uniswap V3 swap adapter */
         uniswapV3SwapAdapter.grantRole(keccak256("USDAI_ROLE"), address(usdai));
@@ -335,8 +338,7 @@ abstract contract BaseTest is Test {
 
     function upgradeUsdai() internal {
         /* Deploy usdai implementation */
-        IUSDai usdaiImpl =
-            new USDai(address(uniswapV3SwapAdapter), address(baseYieldEscrow), address(stakedUsdai), users.mockOAdapter);
+        IUSDai usdaiImpl = new USDai(address(uniswapV3SwapAdapter), address(baseYieldEscrow), address(stakedUsdai));
 
         /* Lookup proxy admin from EIP-1967 storage slot */
         address proxyAdmin = address(uint160(uint256(vm.load(address(usdai), ERC1967Utils.ADMIN_SLOT))));
@@ -374,13 +376,13 @@ abstract contract BaseTest is Test {
         /* Deploy staked usdai implementation */
         StakedUSDai stakedUsdaiImpl = new StakedUSDai(
             address(usdai),
+            WRAPPED_M_TOKEN,
             address(priceOracle),
             address(loanRouter),
             address(users.admin),
             uint64(block.timestamp),
             100,
-            100,
-            users.mockOAdapter
+            100
         );
 
         /* Deploy staked usdai proxy */

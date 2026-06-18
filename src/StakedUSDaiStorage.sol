@@ -9,7 +9,7 @@ import "./interfaces/IPriceOracle.sol";
 
 /**
  * @title Staked USDai Storage
- * @author USD.AI Foundation
+ * @author MetaStreet Foundation
  */
 abstract contract StakedUSDaiStorage {
     using EnumerableSet for EnumerableSet.UintSet;
@@ -27,6 +27,16 @@ abstract contract StakedUSDaiStorage {
      * @notice Strategy admin role
      */
     bytes32 internal constant STRATEGY_ADMIN_ROLE = keccak256("STRATEGY_ADMIN_ROLE");
+
+    /**
+     * @notice Blacklister role
+     */
+    bytes32 internal constant BLACKLIST_ADMIN_ROLE = keccak256("BLACKLIST_ADMIN_ROLE");
+
+    /**
+     * @notice Bridge admin role
+     */
+    bytes32 internal constant BRIDGE_ADMIN_ROLE = keccak256("BRIDGE_ADMIN_ROLE");
 
     /*------------------------------------------------------------------------*/
     /* Constants */
@@ -129,11 +139,6 @@ abstract contract StakedUSDaiStorage {
      */
     uint64 internal immutable _genesisTimestamp;
 
-    /**
-     * @notice Bridge adapter contract
-     */
-    address internal immutable _bridgeAdapter;
-
     /*------------------------------------------------------------------------*/
     /* Constructor */
     /*------------------------------------------------------------------------*/
@@ -144,20 +149,12 @@ abstract contract StakedUSDaiStorage {
      * @param priceOracle Price oracle
      * @param adminFeeRecipient Admin fee recipient
      * @param genesisTimestamp Genesis timestamp
-     * @param bridgeAdapter Bridge adapter contract
      */
-    constructor(
-        address usdai,
-        address priceOracle,
-        address adminFeeRecipient,
-        uint64 genesisTimestamp,
-        address bridgeAdapter
-    ) {
+    constructor(address usdai, address priceOracle, address adminFeeRecipient, uint64 genesisTimestamp) {
         _usdai = IUSDai(usdai);
         _priceOracle = IPriceOracle(priceOracle);
         _adminFeeRecipient = adminFeeRecipient;
         _genesisTimestamp = genesisTimestamp;
-        _bridgeAdapter = bridgeAdapter;
     }
 
     /*------------------------------------------------------------------------*/

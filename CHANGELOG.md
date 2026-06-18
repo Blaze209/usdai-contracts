@@ -1,16 +1,3 @@
-* USDai v1.5 - 04/24/2026
-    * Remove completed `convertBaseToken()` function.
-    * Remove supply cap.
-    * Replace `BRIDGE_ADMIN_ROLE` with immutable address.
-    * Add `pause()` and `unpause()` APIs.
-    * Fix visibility of internal scale helper functions.
-    * Add missing interfaces to `supportsInterface()` API.
-
-* StakedUSDai v1.8 - 04/24/2026
-    * Remove completed `migrate()` function.
-    * Remove legacy base token APIs.
-    * Replace `BRIDGE_ADMIN_ROLE` with immutable address.
-
 * OUSDaiUtility v1.7 - 01/23/2026
     * Add blacklist support with refund mechanism.
 
